@@ -9,13 +9,20 @@ module.exports = {
 		"i",
 		"help",
 		"api",
-		"s"
+		"s",
+		"mp",
+		"rt",
+		"p",
 	],
 	manualResponseReplacements: [
 		// Imgur has lots of funny JS that assumes the domain is imgur.com. These two regexes fix that.
 		{
 			find: "\"https:\\/\\/api\\.\".concat\\(h\\)",
 			replace: "(\"https://\".concat(h.startsWith(\"imgur.your\")?\"\":\"api.\")).concat(h.startsWith(\"imgur.your\")?(h.includes(\"/\") ? h.replace(\"/\", \"/IMGURapi/\") : h.concat(\"/IMGURapi\")):h)"
+		},
+		{
+			find: "\"https:\\/\\/mp\\.\".concat\\(f\\)",
+			replace: "(\"https://\".concat(f.startsWith(\"imgur.your\")?\"\":\"mp.\")).concat(f.startsWith(\"imgur.your\")?(f.includes(\"/\") ? f.replace(\"/\", \"/IMGURmp/\") : f.concat(\"/IMGURmp\")):h)"
 		},
 		{
 			find: "L=\"https:\\/\\/\"\\.concat\\(b,\"\\.\"\\)\\.concat\\(h\\)",

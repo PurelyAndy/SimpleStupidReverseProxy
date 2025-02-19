@@ -8,6 +8,8 @@ const configPath = index > -1 ? process.argv[index + 1] : './config.js';
 const normalizedPath = path.isAbsolute(configPath) ? configPath : path.join(__dirname, configPath);
 const config = require(normalizedPath);
 
+Error.stackTraceLimit = 200;
+
 function fixup(body) {
     if (!body.replace || !body.replaceAll) {
         return body;
@@ -61,7 +63,9 @@ function forward(req, reply, domain, subdomain) {
 
 	const options = {
 		url: theUrl,
-		encoding: null
+		encoding: null,
+		method: req.method,
+		json: req.body,
 	};
 
 	Object.keys(req.headers).forEach(header => {
@@ -120,18 +124,19 @@ function forward(req, reply, domain, subdomain) {
 		} else if (response.headers['content-encoding'] === 'deflate') {
 			modifiedBody = zlib.deflateSync(Buffer.from(modifiedBody));
 		}
+		
 		reply.status(response.statusCode).send(modifiedBody);
 	});
 }
 
 config.subdomains.forEach(subdomain => {
 	const path = config.name.toUpperCase() + subdomain;
-	fastify.get(`/${path}/*`, (req, reply) => {
+	fastify.all(`/${path}/*`, (req, reply) => {
 		forward(req, reply, subdomain + '.' + config.domain, path);
 	});
 });
 
-fastify.get('/*', (req, reply) => {
+fastify.all('/*', (req, reply) => {
 	forward(req, reply, config.domain);
 });
 
