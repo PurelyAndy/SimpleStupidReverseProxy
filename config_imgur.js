@@ -25,8 +25,8 @@ module.exports = {
 			replace: "(\"https://\".concat(f.startsWith(\"imgur.your\")?\"\":\"mp.\")).concat(f.startsWith(\"imgur.your\")?(f.includes(\"/\") ? f.replace(\"/\", \"/IMGURmp/\") : f.concat(\"/IMGURmp\")):h)"
 		},
 		{
-			find: "L=\"https:\\/\\/\"\\.concat\\(b,\"\\.\"\\)\\.concat\\(h\\)",
-			replace: "L=\"https://\".concat(h.startsWith(\"imgur.your\") ? \"\" : \"\".concat(b,\".\")).concat(h.startsWith(\"imgur.your\")?(h.includes(\"/\") ? h.replace(\"/\", \"/IMGURi/\") : h.concat(\"/IMGURi\")):h)"
+			find: "\"https:\\/\\/\"\\.concat\\(b,\"\\.\"\\)\\.concat\\(h\\)",
+			replace: "\"https://\".concat(h.startsWith(\"imgur.your\") ? \"\" : \"\".concat(b,\".\")).concat(h.startsWith(\"imgur.your\")?(h.includes(\"/\") ? h.replace(\"/\", \"/IMGURi/\") : h.concat(\"/IMGURi\")):h)"
 		},
 		// For some reason, "i".concat("mgur.com") is in some script tags that redirect you to imgur.com if the domain is something else.
 		{
