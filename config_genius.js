@@ -11,7 +11,8 @@ module.exports = {
 		"images",
 		"so",
 		"promote",
-		"shop"
+		"shop",
+		"librato-collector"
 	],
 	// For some reason, some images are served from rapgenius.com.
 	// Without this, those would end up being served from rapgenius.your.website,
