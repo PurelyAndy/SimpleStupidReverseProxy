@@ -15,7 +15,7 @@ module.exports = {
 	manualResponseReplacements: [
 		{
 			find: "z:\\(\\)=>h\\.concat\\(\"example\\.com\"\\);", // Sometimes the client will do funny things in JS that have to be manually fixed up like this.
-			replace: "z:()=>\"your.website/EXAMPLE\".concat(h);"
+			replace: "z:()=>\"your.website/EXAMPLE\".concat(h);" // If the original expression returned "abc.example.com", this will return "your.website/EXAMPLEabc" as it should.
 		}
 	],
 	manualRequestReplacements: [
