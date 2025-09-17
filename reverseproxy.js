@@ -1,103 +1,114 @@
-	const fastify = require('fastify')();
-	const request = require('request');
-	const zlib = require('zlib');
-	const path = require("path");
+const fastify = require('fastify')();
+const request = require('request');
+const zlib = require('zlib');
+const path = require('path');
+const fs = require('fs');
+const { customRobotsTxt } = require('./config_example');
 
-	const index = process.argv.lastIndexOf('--config-file');
-	const configPath = index > -1 ? process.argv[index + 1] : './config.js';
-	const normalizedPath = path.isAbsolute(configPath) ? configPath : path.join(__dirname, configPath);
-	const config = require(normalizedPath);
+const index = process.argv.lastIndexOf('--config-file');
+const configPath = index > -1 ? process.argv[index + 1] : './config.js';
+const normalizedPath = path.isAbsolute(configPath) ? configPath : path.join(__dirname, configPath);
+const config = require(normalizedPath);
 
-	Error.stackTraceLimit = 200;
+Error.stackTraceLimit = 200;
 
-	function fixup(body) {
-		if (!body.replace || !body.replaceAll) {
-			return body;
-		}
+function fixup(body) {
+    if (!body.replace || !body.replaceAll) {
+        return body;
+    }
 
-		config.subdomains.forEach(subdomain => {
-			body = body.replaceAll(`${subdomain}.${config.domain}`, `${config.proxyDomain}/${config.name.toUpperCase()}${subdomain}`);
-		});
-
-		if (config.optionalCustomDomainExpression) {
-			const regex = new RegExp(config.optionalCustomDomainExpression, 'g');
-			body = body.replace(regex, `${config.proxyDomain}`);
-		} else {
-			body = body.replaceAll(config.domain, config.proxyDomain);
-		}
-
-		if (config.manualResponseReplacements) {
-			config.manualResponseReplacements.forEach(replacement => {
-				const find = new RegExp(replacement.find, 'g');
-				body = body.replace(find, replacement.replace);
-			});
-		}
-
-		return body;
+	config.subdomains.forEach(subdomain => {
+		body = body.replaceAll(`${subdomain}.${config.domain}`, `${config.proxyDomain}/${config.name.toUpperCase()}${subdomain}`);
+	});
+	
+	if (config.optionalCustomDomainExpression) {
+		const regex = new RegExp(config.optionalCustomDomainExpression, 'g');
+		body = body.replace(regex, `${config.proxyDomain}`);
+	} else {
+		body = body.replaceAll(config.domain, config.proxyDomain);
 	}
 
-	function unfixup(header) {
-		if (!header.replace || !header.replaceAll) {
-			return header;
-		}
-
-		if (config.manualRequestReplacements) {
-			config.manualRequestReplacements.forEach(replacement => {
-				const find = new RegExp(replacement.find, 'g');
-				header = header.replace(find, replacement.replace);
-			});
-		}
-		config.subdomains.forEach(subdomain => {
-			header = header.replaceAll(`${config.proxyDomain}/${config.name.toUpperCase()}${subdomain}`, `${subdomain}.${config.domain}`);
+	if (config.manualResponseReplacements) {
+		config.manualResponseReplacements.forEach(replacement => {
+			const find = new RegExp(replacement.find, 'g');
+			body = body.replace(find, replacement.replace);
 		});
-		header = header.replaceAll(config.proxyDomain, config.domain);
-
-		return header;
 	}
 
-	function forward(req, reply, domain, subdomain) {
-		let theUrl;
-		if (subdomain) {
-			theUrl = `https://${domain}${req.raw.url.replace(`/${subdomain}`, '')}`;
-		} else {
-			theUrl = `https://${domain}${req.raw.url}`;
+	return body;
+}
+
+function unfixup(header) {
+    if (!header.replace || !header.replaceAll) {
+        return header;
+    }
+
+	if (config.manualRequestReplacements) {
+		config.manualRequestReplacements.forEach(replacement => {
+			const find = new RegExp(replacement.find, 'g');
+			header = header.replace(find, replacement.replace);
+		});
+	}
+	config.subdomains.forEach(subdomain => {
+		header = header.replaceAll(`${config.proxyDomain}/${config.name.toUpperCase()}${subdomain}`, `${subdomain}.${config.domain}`);
+	});
+	header = header.replaceAll(config.proxyDomain, config.domain);
+
+	return header;
+}
+
+function forward(req, reply, domain, subdomain) {
+	let theUrl;
+	if (subdomain) {
+		theUrl = `https://${domain}${req.raw.url.replace(`/${subdomain}`, '')}`;
+	} else {
+		theUrl = `https://${domain}${req.raw.url}`;
+	}
+
+	const options = {
+		url: theUrl,
+		encoding: null,
+		method: req.method,
+		json: req.body,
+	};
+
+	if (config.customRobotsTxt) {
+		let url = subdomain ? req.raw.url.replace(`/${subdomain}`, '') : req.raw.url;
+		if (url === '/robots.txt') {
+			reply.status(200).header('Content-Type', 'text/plain').send(fs.readFileSync(path.join(__dirname, 'robots.txt'), 'utf8'));
+			return;
+		}
+	}
+
+	Object.keys(req.headers).forEach(header => {
+		options.headers = options.headers || {};
+		options.headers[header] = unfixup(req.headers[header]);
+		if (header.toLowerCase() === 'x-forwarded-for' || header.toLowerCase() === 'cf-connecting-ip') {
+			options.headers[header] = config.proxyIP;
+		}
+		if (header.toLowerCase() === 'host') {
+			options.headers[header] = `${domain}`;
+		}
+	});
+	
+	options.headers['cache-control'] = 'no-cache';
+	options.headers['pragma'] = 'no-cache';
+	options.headers['if-modified-since'] = '';
+	options.headers['if-none-match'] = '';
+
+	request(options, (error, response, body) => {
+		if (error) {
+			return reply.send(error);
 		}
 
-		const options = {
-			url: theUrl,
-			encoding: null,
-			method: req.method,
-			json: req.body,
-		};
-
-		Object.keys(req.headers).forEach(header => {
-			options.headers = options.headers || {};
-			options.headers[header] = unfixup(req.headers[header]);
-			if (header.toLowerCase() === 'x-forwarded-for' || header.toLowerCase() === 'cf-connecting-ip') {
-				options.headers[header] = config.proxyIP;
-			}
-			if (header.toLowerCase() === 'host') {
-				options.headers[header] = `${domain}`;
-			}
+		// Copy all headers from the original response
+		Object.keys(response.headers).forEach(header => {
+			let resheader = response.headers[header];
+			resheader = fixup(resheader);
+			reply.header(header, resheader);
 		});
 
-		options.headers['cache-control'] = 'no-cache';
-		options.headers['pragma'] = 'no-cache';
-		options.headers['if-modified-since'] = '';
-		options.headers['if-none-match'] = '';
-
-		request(options, (error, response, body) => {
-			if (error) {
-				return reply.send(error);
-			}
-
-			// Copy all headers from the original response
-			Object.keys(response.headers).forEach(header => {
-				let resheader = response.headers[header];
-				resheader = fixup(resheader);
-				reply.header(header, resheader);
-			});
-
+		if (body !== undefined) {
 			let decompressedBody = body;
 			if (response.headers['content-encoding'] === 'gzip') {
 				decompressedBody = zlib.gunzipSync(body);
@@ -128,25 +139,28 @@
 			}
 
 			reply.status(response.statusCode).send(modifiedBody);
-		});
-	}
-
-	fastify.addContentTypeParser('multipart/form-data', (req, payload, done) => {
-		done(null, payload);
+		} else {
+			reply.status(response.statusCode).send();
+		}
 	});
+}
 
-	config.subdomains.forEach(subdomain => {
-		const path = config.name.toUpperCase() + subdomain;
-		fastify.all(`/${path}/*`, (req, reply) => {
-			forward(req, reply, subdomain + '.' + config.domain, path);
-		});
-	});
+fastify.addContentTypeParser('multipart/form-data', (req, payload, done) => {
+	done(null, payload);
+});
 
-	fastify.all('/*', (req, reply) => {
-		forward(req, reply, config.domain);
+config.subdomains.forEach(subdomain => {
+	const path = config.name.toUpperCase() + subdomain;
+	fastify.all(`/${path}/*`, (req, reply) => {
+		forward(req, reply, subdomain + '.' + config.domain, path);
 	});
+});
 
-	fastify.listen({ port: config.port, host: config.host }, (err, address) => {
-		if (err) throw err;
-		console.log(`Server listening at ${address}`);
-	});
+fastify.all('/*', (req, reply) => {
+	forward(req, reply, config.domain);
+});
+
+fastify.listen({ port: config.port, host: config.host }, (err, address) => {
+	if (err) throw err;
+	console.log(`Server listening at ${address}`);
+});
