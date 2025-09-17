@@ -23,5 +23,6 @@ module.exports = {
 			find: "(something){3}", // These are applied to the request headers.
 			replace: "something elsesomething elsesomething else"
 		}
-	]
+	],
+	customRobotsTxt: true // Use when web crawlers are giving you a hard time
 };
