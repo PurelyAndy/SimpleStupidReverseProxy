@@ -65,6 +65,10 @@ function forward(req, reply, domain, subdomain) {
 		theUrl = `https://${domain}${req.raw.url}`;
 	}
 
+	if (config.debugLogs) {
+		console.log(`[${new Date().toISOString()}] ${req.method} ${theUrl} - ${req.ip}`);
+	}
+
 	const options = {
 		url: theUrl,
 		encoding: null,
@@ -123,7 +127,7 @@ function forward(req, reply, domain, subdomain) {
 			if (!response.headers['content-type']) {
 				shouldFixUp = options.url.endsWith('html') || options.url.endsWith('js');
 			} else {
-				shouldFixUp = response.headers['content-type'].includes('text');
+				shouldFixUp = response.headers['content-type'].includes('text') || response.headers['content-type'].includes('json');
 			}
 			if (shouldFixUp) {
 				decompressedBody = decompressedBody.toString();
